@@ -240,7 +240,7 @@ const sendBookingConfirmationEmail = inngest.createFunction(
                             
                             <p style="margin: 20px 0 0 0; font-size: 14px; color: #666666; line-height: 1.6; text-align: center;">
                                 Thanks for booking with us!<br/>
-                                <strong style="color: #F84565;">— QuickShow Team</strong>
+                                <strong style="color: #F84565;">— ShowSphere Team</strong>
                             </p>
                         </td>
                     </tr>
@@ -331,7 +331,7 @@ const sendShowReminders = inngest.createFunction(
                             </p>
                             <p>It starts in approximately <strong>8 hours</strong> - make sure you're ready!</p>
                             <br/>
-                            <p>Enjoy the show!<br/>QuickShow Team</p>
+                            <p>Enjoy the show!<br/>ShowSphere Team</p>
                         </div>`
                 }))
             )
@@ -368,7 +368,7 @@ const sendNewShowNotifications = inngest.createFunction(
                     <h3 style="color: #F84565;">"${movieTitle}"</h3>
                     <p>Visit our website</p>
                     <br/>
-                    <p>Thanks,<br/>QuickShow Team</p>
+                    <p>Thanks,<br/>ShowSphere Team</p>
                 </div>`;
 
                 await sendEmail({
