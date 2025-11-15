@@ -14,7 +14,23 @@
 
 body{
   color: white;
-  background-color: #09090B;
+  background: linear-gradient(135deg, #1a0a1a 0%, #2d0d2d 20%, #4a154a 40%, #5d1f5d 50%, #4a154a 60%, #2d0d2d 80%, #1a0a1a 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 20% 50%, rgba(248, 69, 101, 0.15) 0%, transparent 50%),
+              radial-gradient(circle at 80% 80%, rgba(248, 69, 101, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .no-scrollbar{
