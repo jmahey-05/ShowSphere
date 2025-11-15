@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react'
-import { dummyShowsData } from '../../assets/assets';
+import React, { useEffect, useState, useCallback } from 'react'
 import Loading from '../../components/Loading';
 import Title from '../../components/admin/Title';
-import { CheckIcon, DeleteIcon, StarIcon } from 'lucide-react';
+import { CheckIcon, DeleteIcon, StarIcon, Loader2 } from 'lucide-react';
 import { kConverter } from '../../lib/kConverter';
 import { useAppContext } from '../../context/AppContext';
 import toast from 'react-hot-toast';
@@ -20,7 +19,7 @@ const AddShows = () => {
     const [addingShow, setAddingShow] = useState(false)
 
 
-     const fetchNowPlayingMovies = async () => {
+     const fetchNowPlayingMovies = useCallback(async () => {
         try {
             const { data } = await axios.get('/api/show/now-playing', {
                 headers: { Authorization: `Bearer ${await getToken()}` }})
@@ -30,7 +29,7 @@ const AddShows = () => {
         } catch (error) {
             console.error('Error fetching movies:', error)
         }
-    };
+    }, [axios, getToken]);
 
     const handleDateTimeAdd = () => {
         if (!dateTimeInput) return;
@@ -61,19 +60,34 @@ const AddShows = () => {
     };
 
     const handleSubmit = async ()=>{
+        // Validate before setting loading state
+        if(!selectedMovie || Object.keys(dateTimeSelection).length === 0 || !showPrice){
+            toast.error('Missing required fields. Please select a movie, add at least one date/time, and enter a show price.');
+            return;
+        }
+
+        // Validate showPrice is a valid number
+        const price = Number(showPrice);
+        if(isNaN(price) || price <= 0){
+            toast.error('Please enter a valid show price (greater than 0).');
+            return;
+        }
+
         try {
-            setAddingShow(true)
+            setAddingShow(true);
 
-            if(!selectedMovie || Object.keys(dateTimeSelection).length === 0 || !showPrice){
-                return toast('Missing required fields');
-            }
-
-            const showsInput = Object.entries(dateTimeSelection).map(([date, time])=> ({date, time}));
+            // Transform dateTimeSelection to the format expected by backend
+            // dateTimeSelection format: { "2024-01-15": ["10:00", "14:00"], "2024-01-16": ["11:00"] }
+            // Expected format: [{ date: "2024-01-15", time: ["10:00", "14:00"] }, { date: "2024-01-16", time: ["11:00"] }]
+            const showsInput = Object.entries(dateTimeSelection).map(([date, times]) => ({
+                date: date,
+                time: Array.isArray(times) ? times : [times] // Ensure time is always an array
+            }));
 
             const payload = {
                 movieId: selectedMovie,
                 showsInput,
-                showPrice: Number(showPrice)
+                showPrice: price
             }
 
             const { data } = await axios.post('/api/show/add', payload, {headers: { Authorization: `Bearer ${await getToken()}` }})
@@ -83,21 +97,24 @@ const AddShows = () => {
                 setSelectedMovie(null)
                 setDateTimeSelection({})
                 setShowPrice("")
+                setDateTimeInput("") // Clear the datetime input as well
             }else{
-                toast.error(data.message)
+                toast.error(data.message || 'Failed to add show')
             }
         } catch (error) {
             console.error("Submission error:", error);
-            toast.error('An error occurred. Please try again.')
+            const errorMessage = error.response?.data?.message || error.message || 'An error occurred. Please try again.';
+            toast.error(errorMessage)
+        } finally {
+            setAddingShow(false)
         }
-        setAddingShow(false)
     }
 
     useEffect(() => {
         if(user){
             fetchNowPlayingMovies();
         }
-    }, [user]);
+    }, [user, fetchNowPlayingMovies]);
 
   return nowPlayingMovies.length > 0 ? (
     <>
@@ -170,8 +187,19 @@ const AddShows = () => {
             </ul>
             </div>
        )}
-       <button onClick={handleSubmit} disabled={addingShow} className="bg-primary text-white px-8 py-2 mt-6 rounded hover:bg-primary/90 transition-all cursor-pointer" >
-            Add Show
+       <button 
+         onClick={handleSubmit} 
+         disabled={addingShow} 
+         className="flex items-center gap-2 bg-primary text-white px-8 py-2 mt-6 rounded hover:bg-primary/90 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 disabled:active:scale-100" 
+       >
+            {addingShow ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Adding Show...
+              </>
+            ) : (
+              'Add Show'
+            )}
         </button>
     </>
   ) : <Loading />

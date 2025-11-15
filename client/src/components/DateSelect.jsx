@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import BlurCircle from './BlurCircle'
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
+import { ChevronLeftIcon, ChevronRightIcon, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 
@@ -9,13 +9,18 @@ const DateSelect = ({dateTime, id}) => {
     const navigate = useNavigate();
 
     const [selected, setSelected] = useState(null)
+    const [loading, setLoading] = useState(false)
 
     const onBookHandler = ()=>{
+        if(loading) return; // Prevent multiple clicks
         if(!selected){
             return toast('Please select a date')
         }
+        setLoading(true)
         navigate(`/movies/${id}/${selected}`)
         scrollTo(0,0)
+        // Reset loading after navigation
+        setTimeout(() => setLoading(false), 500)
     }
 
   return (
@@ -38,7 +43,20 @@ const DateSelect = ({dateTime, id}) => {
                 <ChevronRightIcon width={28}/>
             </div>
         </div>
-        <button onClick={onBookHandler} className='bg-primary text-white px-8 py-2 mt-6 rounded hover:bg-primary/90 transition-all cursor-pointer'>Book Now</button>
+        <button 
+          onClick={onBookHandler} 
+          disabled={loading}
+          className='flex items-center gap-2 bg-primary text-white px-8 py-2 mt-6 rounded hover:bg-primary/90 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
+        >
+          {loading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading...
+            </>
+          ) : (
+            'Book Now'
+          )}
+        </button>
       </div>
     </div>
   )

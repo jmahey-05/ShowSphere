@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { assets } from "../assets/assets";
 import Loading from "../components/Loading";
-import { ArrowRightIcon, ClockIcon, CheckIcon } from "lucide-react";
+import { ArrowRightIcon, ClockIcon, CheckIcon, Loader2 } from "lucide-react";
 import isoTimeFormat from "../lib/isoTimeFormat";
 import BlurCircle from "../components/BlurCircle";
 import toast from "react-hot-toast";
@@ -24,6 +24,7 @@ const SeatLayout = () => {
   const [occupiedSeats, setOccupiedSeats] = useState([]);
   const [showPrice, setShowPrice] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [bookingLoading, setBookingLoading] = useState(false);
 
   const navigate = useNavigate();
   const { axios, getToken, user } = useAppContext();
@@ -122,11 +123,19 @@ const SeatLayout = () => {
 
   // Book ticket
   const bookTickets = async () => {
+    if (bookingLoading) return; // Prevent multiple clicks
+    
     try {
-      if (!user) return toast.error("Please login to proceed");
+      setBookingLoading(true);
+      if (!user) {
+        toast.error("Please login to proceed");
+        return;
+      }
 
-      if (!selectedTime || selectedSeats.length === 0)
-        return toast.error("Please select a time and seats");
+      if (!selectedTime || selectedSeats.length === 0) {
+        toast.error("Please select a time and seats");
+        return;
+      }
 
       const { data } = await axios.post(
         "/api/booking/create",
@@ -155,6 +164,8 @@ const SeatLayout = () => {
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || "An error occurred. Please try again.";
       toast.error(errorMessage);
+    } finally {
+      setBookingLoading(false);
     }
   };
 
@@ -291,11 +302,20 @@ const SeatLayout = () => {
 
         <button
           onClick={bookTickets}
-          disabled={!selectedTime || selectedSeats.length === 0}
-          className="flex items-center gap-1 mt-8 px-10 py-3 text-sm bg-primary hover:bg-primary-dull transition rounded-full font-medium cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 shadow-md hover:shadow-lg"
+          disabled={!selectedTime || selectedSeats.length === 0 || bookingLoading}
+          className="flex items-center gap-2 mt-8 px-10 py-3 text-sm bg-primary hover:bg-primary-dull transition rounded-full font-medium cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 shadow-md hover:shadow-lg"
         >
-          Proceed to Checkout
-          <ArrowRightIcon strokeWidth={3} className="w-4 h-4" />
+          {bookingLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            <>
+              Proceed to Checkout
+              <ArrowRightIcon strokeWidth={3} className="w-4 h-4" />
+            </>
+          )}
         </button>
       </div>
     </div>

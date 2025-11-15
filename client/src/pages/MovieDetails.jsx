@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { dummyDateTimeData, dummyShowsData } from '../assets/assets'
 import BlurCircle from '../components/BlurCircle'
-import { Heart, PlayCircleIcon, StarIcon } from 'lucide-react'
+import { Heart, PlayCircleIcon, StarIcon, Loader2 } from 'lucide-react'
 import timeFormat from '../lib/timeFormat'
 import DateSelect from '../components/DateSelect'
 import MovieCard from '../components/MovieCard'
@@ -15,6 +15,7 @@ const MovieDetails = () => {
   const navigate = useNavigate()
   const { id } = useParams()
   const [show, setShow] = useState(null)
+  const [favoriteLoading, setFavoriteLoading] = useState(false)
 
   const { shows, axios, getToken, user, fetchFavoriteMovies, favoriteMovies, image_base_url } = useAppContext()
 
@@ -30,8 +31,14 @@ const MovieDetails = () => {
   }, [axios, id])
 
   const handleFavorite = async () => {
+    if (favoriteLoading) return; // Prevent multiple clicks
+    
     try {
-      if (!user) return toast.error("Please login to proceed");
+      setFavoriteLoading(true);
+      if (!user) {
+        toast.error("Please login to proceed");
+        return;
+      }
 
       const { data } = await axios.post('/api/user/update-favorite', { movieId: id }, { headers: { Authorization: `Bearer ${await getToken()}` } })
 
@@ -41,6 +48,9 @@ const MovieDetails = () => {
       }
     } catch (error) {
       console.log(error)
+      toast.error("Failed to update favorite")
+    } finally {
+      setFavoriteLoading(false);
     }
   }
 
@@ -90,8 +100,16 @@ const MovieDetails = () => {
               Watch Trailer
             </button>
             <a href="#dateSelect" className='px-10 py-3 text-sm bg-primary hover:bg-primary-dull transition rounded-md font-medium cursor-pointer active:scale-95'>Buy Tickets</a>
-            <button onClick={handleFavorite} className='bg-gray-700 p-2.5 rounded-full transition cursor-pointer active:scale-95'>
-              <Heart className={`w-5 h-5 ${favoriteMovies.find(movie => movie._id === id) ? 'fill-primary text-primary' : ""} `} />
+            <button 
+              onClick={handleFavorite} 
+              disabled={favoriteLoading}
+              className='bg-gray-700 p-2.5 rounded-full transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 flex items-center justify-center'
+            >
+              {favoriteLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              ) : (
+                <Heart className={`w-5 h-5 ${favoriteMovies.find(movie => movie._id === id) ? 'fill-primary text-primary' : ""} `} />
+              )}
             </button>
           </div>
         </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BlurCircle from '../components/BlurCircle'
-import { ChevronLeft, ChevronRight, Calendar, StarIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, StarIcon, Loader2 } from 'lucide-react'
 import { useAppContext } from '../context/AppContext'
 import Loading from '../components/Loading'
 
@@ -10,6 +10,7 @@ const Releases = () => {
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [pageLoading, setPageLoading] = useState(false)
   
   const { fetchReleases, image_base_url } = useAppContext()
   const navigate = useNavigate()
@@ -26,10 +27,18 @@ const Releases = () => {
     loadReleases(currentPage)
   }, [currentPage, loadReleases])
 
-  const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+  const handlePageChange = async (newPage) => {
+    if (pageLoading || newPage < 1 || newPage > totalPages) return;
+    
+    setPageLoading(true);
+    try {
+      if (newPage >= 1 && newPage <= totalPages) {
+        setCurrentPage(newPage)
+        await loadReleases(newPage)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+    } finally {
+      setPageLoading(false);
     }
   }
 
@@ -126,14 +135,18 @@ const Releases = () => {
               <div className='flex items-center justify-center gap-4 mt-8'>
                 <button
                   onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
+                  disabled={currentPage === 1 || pageLoading}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
-                    currentPage === 1
+                    currentPage === 1 || pageLoading
                       ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
                       : 'bg-primary hover:bg-primary-dull text-white cursor-pointer'
                   }`}
                 >
-                  <ChevronLeft className='w-4 h-4'/>
+                  {pageLoading ? (
+                    <Loader2 className='w-4 h-4 animate-spin'/>
+                  ) : (
+                    <ChevronLeft className='w-4 h-4'/>
+                  )}
                   Previous
                 </button>
                 
@@ -154,13 +167,18 @@ const Releases = () => {
                       <button
                         key={pageNum}
                         onClick={() => handlePageChange(pageNum)}
-                        className={`px-4 py-2 rounded-lg font-medium transition ${
+                        disabled={pageLoading}
+                        className={`px-4 py-2 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed ${
                           currentPage === pageNum
                             ? 'bg-primary text-white'
                             : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                         }`}
                       >
-                        {pageNum}
+                        {pageLoading && currentPage === pageNum ? (
+                          <Loader2 className='w-4 h-4 animate-spin inline-block'/>
+                        ) : (
+                          pageNum
+                        )}
                       </button>
                     );
                   })}
@@ -168,15 +186,19 @@ const Releases = () => {
                 
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
+                  disabled={currentPage === totalPages || pageLoading}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
-                    currentPage === totalPages
+                    currentPage === totalPages || pageLoading
                       ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
                       : 'bg-primary hover:bg-primary-dull text-white cursor-pointer'
                   }`}
                 >
                   Next
-                  <ChevronRight className='w-4 h-4'/>
+                  {pageLoading ? (
+                    <Loader2 className='w-4 h-4 animate-spin'/>
+                  ) : (
+                    <ChevronRight className='w-4 h-4'/>
+                  )}
                 </button>
               </div>
             )}

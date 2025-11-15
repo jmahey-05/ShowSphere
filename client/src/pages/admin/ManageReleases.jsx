@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import Loading from '../../components/Loading'
 import Title from '../../components/admin/Title'
-import { CheckIcon, DeleteIcon, StarIcon, PlusIcon } from 'lucide-react'
+import { CheckIcon, DeleteIcon, StarIcon, PlusIcon, Loader2 } from 'lucide-react'
 import { kConverter } from '../../lib/kConverter'
 import { useAppContext } from '../../context/AppContext'
 import toast from 'react-hot-toast'
@@ -17,6 +17,7 @@ const ManageReleases = () => {
     const [totalPages, setTotalPages] = useState(1)
     const [addingRelease, setAddingRelease] = useState(false)
     const [removingRelease, setRemovingRelease] = useState(null)
+    const [pageLoading, setPageLoading] = useState(false)
 
     const fetchUpcomingMovies = async (page = 1) => {
         try {
@@ -97,10 +98,17 @@ const ManageReleases = () => {
         }
     }, [user])
 
-    const handlePageChange = (newPage) => {
-        if (newPage >= 1 && newPage <= totalPages) {
-            setCurrentPage(newPage)
-            fetchUpcomingMovies(newPage)
+    const handlePageChange = async (newPage) => {
+        if (pageLoading || newPage < 1 || newPage > totalPages) return;
+        
+        setPageLoading(true);
+        try {
+            if (newPage >= 1 && newPage <= totalPages) {
+                setCurrentPage(newPage)
+                await fetchUpcomingMovies(newPage)
+            }
+        } finally {
+            setPageLoading(false);
         }
     }
 
@@ -138,10 +146,19 @@ const ManageReleases = () => {
                                     <button
                                         onClick={() => handleRemoveRelease(release.movieId)}
                                         disabled={removingRelease === release.movieId}
-                                        className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md transition disabled:opacity-50"
+                                        className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md transition disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 disabled:active:scale-100"
                                     >
-                                        <DeleteIcon className="w-4 h-4" />
-                                        {removingRelease === release.movieId ? 'Removing...' : 'Remove'}
+                                        {removingRelease === release.movieId ? (
+                                          <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Removing...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <DeleteIcon className="w-4 h-4" />
+                                            Remove
+                                          </>
+                                        )}
                                     </button>
                                 </div>
                             ))}
@@ -185,10 +202,19 @@ const ManageReleases = () => {
                                             isAdded 
                                                 ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
                                                 : 'bg-primary hover:bg-primary-dull text-white'
-                                        } disabled:opacity-50`}
+                                        } disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 disabled:active:scale-100`}
                                     >
-                                        <PlusIcon className="w-4 h-4" />
-                                        {isAdded ? 'Added' : addingRelease ? 'Adding...' : 'Add Release'}
+                                        {addingRelease ? (
+                                          <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Adding...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <PlusIcon className="w-4 h-4" />
+                                            {isAdded ? 'Added' : 'Add Release'}
+                                          </>
+                                        )}
                                     </button>
                                 </div>
                             )
@@ -201,13 +227,16 @@ const ManageReleases = () => {
                     <div className='flex items-center justify-center gap-4 mt-8'>
                         <button
                             onClick={() => handlePageChange(currentPage - 1)}
-                            disabled={currentPage === 1}
+                            disabled={currentPage === 1 || pageLoading}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
-                                currentPage === 1
+                                currentPage === 1 || pageLoading
                                     ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
                                     : 'bg-primary hover:bg-primary-dull text-white cursor-pointer'
                             }`}
                         >
+                            {pageLoading ? (
+                                <Loader2 className='w-4 h-4 animate-spin'/>
+                            ) : null}
                             Previous
                         </button>
                         
@@ -228,13 +257,18 @@ const ManageReleases = () => {
                                     <button
                                         key={pageNum}
                                         onClick={() => handlePageChange(pageNum)}
-                                        className={`px-4 py-2 rounded-lg font-medium transition ${
+                                        disabled={pageLoading}
+                                        className={`px-4 py-2 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed ${
                                             currentPage === pageNum
                                                 ? 'bg-primary text-white'
                                                 : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                                         }`}
                                     >
-                                        {pageNum}
+                                        {pageLoading && currentPage === pageNum ? (
+                                            <Loader2 className='w-4 h-4 animate-spin inline-block'/>
+                                        ) : (
+                                            pageNum
+                                        )}
                                     </button>
                                 );
                             })}
@@ -242,14 +276,17 @@ const ManageReleases = () => {
                         
                         <button
                             onClick={() => handlePageChange(currentPage + 1)}
-                            disabled={currentPage === totalPages}
+                            disabled={currentPage === totalPages || pageLoading}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
-                                currentPage === totalPages
+                                currentPage === totalPages || pageLoading
                                     ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
                                     : 'bg-primary hover:bg-primary-dull text-white cursor-pointer'
                             }`}
                         >
                             Next
+                            {pageLoading ? (
+                                <Loader2 className='w-4 h-4 animate-spin'/>
+                            ) : null}
                         </button>
                     </div>
                 )}
