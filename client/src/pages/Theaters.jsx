@@ -12,18 +12,23 @@ const Theaters = () => {
   
   const { fetchTheaters } = useAppContext()
 
+  const loadTheaters = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      const result = await fetchTheaters()
+      setTheaters(result.theaters || [])
+      setCity(result.city || '')
+      setState(result.state || '')
+    } catch (error) {
+      console.error('Error loading theaters:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [fetchTheaters])
+
   useEffect(() => {
     loadTheaters()
-  }, [])
-
-  const loadTheaters = async () => {
-    setLoading(true)
-    const result = await fetchTheaters()
-    setTheaters(result.theaters || [])
-    setCity(result.city || '')
-    setState(result.state || '')
-    setLoading(false)
-  }
+  }, [loadTheaters])
 
   const handleDirections = (theater) => {
     const url = `https://www.google.com/maps/search/?api=1&query=${theater.location.latitude},${theater.location.longitude}`

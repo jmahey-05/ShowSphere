@@ -6,7 +6,7 @@ import { dateFormat } from '../../lib/dateFormat';
 import { useAppContext } from '../../context/AppContext';
 
 const ListBookings = () => {
-    const currency = import.meta.env.VITE_CURRENCY
+    const currency = import.meta.env.VITE_CURRENCY || "₹"
 
     const {axios, getToken, user} = useAppContext()
 

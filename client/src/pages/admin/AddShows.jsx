@@ -11,7 +11,7 @@ const AddShows = () => {
 
     const {axios, getToken, user, image_base_url} = useAppContext()
 
-    const currency = import.meta.env.VITE_CURRENCY
+    const currency = import.meta.env.VITE_CURRENCY || "₹"
     const [nowPlayingMovies, setNowPlayingMovies] = useState([]);
     const [selectedMovie, setSelectedMovie] = useState(null);
     const [dateTimeSelection, setDateTimeSelection] = useState({});

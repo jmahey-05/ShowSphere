@@ -7,7 +7,7 @@ import { useAppContext } from '../../context/AppContext';
 
 const ListShows = () => {
 
-    const currency = import.meta.env.VITE_CURRENCY
+    const currency = import.meta.env.VITE_CURRENCY || "₹"
 
     const {axios, getToken, user} = useAppContext()
 

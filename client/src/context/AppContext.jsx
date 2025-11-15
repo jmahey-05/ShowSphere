@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { useAuth, useUser } from "@clerk/clerk-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -21,7 +21,7 @@ export const AppProvider = ({ children })=>{
     const location = useLocation()
     const navigate = useNavigate()
 
-    const fetchIsAdmin = async ()=>{
+    const fetchIsAdmin = useCallback(async ()=>{
         try {
             const {data} = await axios.get('/api/admin/is-admin', {headers: {Authorization: `Bearer ${await getToken()}`}})
             setIsAdmin(data.isAdmin)
@@ -33,7 +33,7 @@ export const AppProvider = ({ children })=>{
         } catch (error) {
             console.error(error)
         }
-    }
+    }, [getToken, location.pathname, navigate])
 
     const fetchShows = async ()=>{
         try {
@@ -48,7 +48,7 @@ export const AppProvider = ({ children })=>{
         }
     }
 
-    const fetchFavoriteMovies = async ()=>{
+    const fetchFavoriteMovies = useCallback(async ()=>{
         try {
             const { data } = await axios.get('/api/user/favorites', {headers: {Authorization: `Bearer ${await getToken()}`}})
 
@@ -60,7 +60,7 @@ export const AppProvider = ({ children })=>{
         } catch (error) {
             console.error(error)
         }
-    }
+    }, [getToken])
 
     const searchMovies = async (query) => {
         try {
@@ -127,7 +127,7 @@ export const AppProvider = ({ children })=>{
             fetchIsAdmin()
             fetchFavoriteMovies()
         }
-    },[user])
+    },[user, fetchIsAdmin, fetchFavoriteMovies])
 
     const value = {
         axios,
