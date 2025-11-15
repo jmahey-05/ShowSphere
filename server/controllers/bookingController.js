@@ -27,15 +27,34 @@ export const createBooking = async (req, res)=>{
         const {showId, selectedSeats} = req.body;
         const { origin } = req.headers;
 
+        // Input validation
+        if (!showId) {
+            return res.status(400).json({success: false, message: "Show ID is required"});
+        }
+        if (!selectedSeats || !Array.isArray(selectedSeats) || selectedSeats.length === 0) {
+            return res.status(400).json({success: false, message: "At least one seat must be selected"});
+        }
+        if (selectedSeats.length > 10) {
+            return res.status(400).json({success: false, message: "Maximum 10 seats can be booked at once"});
+        }
+
         // Check if the seat is available for the selected show
         const isAvailable = await checkSeatsAvailability(showId, selectedSeats)
 
         if(!isAvailable){
-            return res.json({success: false, message: "Selected Seats are not available."})
+            return res.status(409).json({success: false, message: "Selected Seats are not available."})
         }
 
         // Get the show details
         const showData = await Show.findById(showId).populate('movie');
+        
+        if (!showData) {
+            return res.status(404).json({success: false, message: "Show not found"});
+        }
+        
+        if (!showData.movie) {
+            return res.status(404).json({success: false, message: "Movie not found for this show"});
+        }
 
         // Create a new booking
         const booking = await Booking.create({
@@ -90,11 +109,11 @@ export const createBooking = async (req, res)=>{
             }
          })
 
-         res.json({success: true, url: session.url})
+         res.status(201).json({success: true, url: session.url})
 
     } catch (error) {
         console.log(error.message);
-        res.json({success: false, message: error.message})
+        res.status(500).json({success: false, message: error.message})
     }
 }
 
@@ -102,14 +121,23 @@ export const getOccupiedSeats = async (req, res)=>{
     try {
         
         const {showId} = req.params;
+        
+        if (!showId) {
+            return res.status(400).json({success: false, message: "Show ID is required"});
+        }
+        
         const showData = await Show.findById(showId)
+        
+        if (!showData) {
+            return res.status(404).json({success: false, message: "Show not found"});
+        }
 
-        const occupiedSeats = Object.keys(showData.occupiedSeats)
+        const occupiedSeats = Object.keys(showData.occupiedSeats || {})
 
         res.json({success: true, occupiedSeats})
 
     } catch (error) {
         console.log(error.message);
-        res.json({success: false, message: error.message})
+        res.status(500).json({success: false, message: error.message})
     }
 }
