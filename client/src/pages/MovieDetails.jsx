@@ -103,12 +103,16 @@ const MovieDetails = () => {
             <button 
               onClick={handleFavorite} 
               disabled={favoriteLoading}
-              className='bg-gray-700 p-2.5 rounded-full transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 flex items-center justify-center'
+              className='bg-gray-700 p-2.5 rounded-full transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 flex items-center justify-center hover:bg-gray-600'
             >
               {favoriteLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin text-primary" />
               ) : (
-                <Heart className={`w-5 h-5 ${favoriteMovies.find(movie => movie._id === id) ? 'fill-primary text-primary' : ""} `} />
+                <Heart className={`w-5 h-5 transition-colors ${
+                  favoriteMovies.find(movie => movie._id === id) 
+                    ? 'fill-red-500 text-red-500' 
+                    : 'text-gray-300 hover:text-red-400'
+                }`} />
               )}
             </button>
           </div>
