@@ -7,6 +7,11 @@ import MovieDetails from './pages/MovieDetails'
 import SeatLayout from './pages/SeatLayout'
 import MyBookings from './pages/MyBookings'
 import Favorite from './pages/Favorite'
+import Search from './pages/Search'
+import Releases from './pages/Releases'
+import Theaters from './pages/Theaters'
+import About from './pages/About'
+import PrivacyPolicy from './pages/PrivacyPolicy'
 import { Toaster } from 'react-hot-toast'
 import Footer from './components/Footer'
 import Layout from './pages/admin/Layout'
@@ -14,6 +19,7 @@ import Dashboard from './pages/admin/Dashboard'
 import AddShows from './pages/admin/AddShows'
 import ListShows from './pages/admin/ListShows'
 import ListBookings from './pages/admin/ListBookings'
+import ManageReleases from './pages/admin/ManageReleases'
 import { useAppContext } from './context/AppContext'
 import { SignIn } from '@clerk/clerk-react'
 import Loading from './components/Loading'
@@ -35,6 +41,11 @@ const App = () => {
         <Route path='/movies/:id/:date' element={<SeatLayout/>} />
         <Route path='/my-bookings' element={<MyBookings/>} />
         <Route path='/loading/:nextUrl' element={<Loading/>} />
+        <Route path='/search' element={<Search/>} />
+        <Route path='/releases' element={<Releases/>} />
+        <Route path='/theaters' element={<Theaters/>} />
+        <Route path='/about' element={<About/>} />
+        <Route path='/privacy-policy' element={<PrivacyPolicy/>} />
 
         <Route path='/favorite' element={<Favorite/>} />
         <Route path='/admin/*' element={user ? <Layout/> : (
@@ -46,6 +57,7 @@ const App = () => {
           <Route path="add-shows" element={<AddShows/>}/>
           <Route path="list-shows" element={<ListShows/>}/>
           <Route path="list-bookings" element={<ListBookings/>}/>
+          <Route path="manage-releases" element={<ManageReleases/>}/>
         </Route>
       </Routes>
        {!isAdminRoute && <Footer />}

@@ -62,6 +62,62 @@ export const AppProvider = ({ children })=>{
         }
     }
 
+    const searchMovies = async (query) => {
+        try {
+            const { data } = await axios.get('/api/show/search', {
+                params: { query }
+            })
+            if(data.success){
+                return data.movies
+            }else{
+                toast.error(data.message)
+                return []
+            }
+        } catch (error) {
+            console.error(error)
+            toast.error('Failed to search movies')
+            return []
+        }
+    }
+
+    const fetchReleases = async (page = 1) => {
+        try {
+            const { data } = await axios.get('/api/show/upcoming', {
+                params: { page }
+            })
+            if(data.success){
+                return {
+                    movies: data.movies,
+                    totalPages: data.totalPages,
+                    currentPage: data.currentPage
+                }
+            }else{
+                toast.error(data.message)
+                return { movies: [], totalPages: 0, currentPage: 1 }
+            }
+        } catch (error) {
+            console.error(error)
+            toast.error('Failed to fetch upcoming releases')
+            return { movies: [], totalPages: 0, currentPage: 1 }
+        }
+    }
+
+    const fetchTheaters = async () => {
+        try {
+            const { data } = await axios.get('/api/show/theaters')
+            if(data.success){
+                return data
+            }else{
+                toast.error(data.message)
+                return { theaters: [], city: '', state: '' }
+            }
+        } catch (error) {
+            console.error(error)
+            toast.error('Failed to fetch theaters')
+            return { theaters: [], city: '', state: '' }
+        }
+    }
+
     useEffect(()=>{
         fetchShows()
     },[])
@@ -77,7 +133,8 @@ export const AppProvider = ({ children })=>{
         axios,
         fetchIsAdmin,
         user, getToken, navigate, isAdmin, shows, 
-        favoriteMovies, fetchFavoriteMovies, image_base_url
+        favoriteMovies, fetchFavoriteMovies, image_base_url,
+        searchMovies, fetchReleases, fetchTheaters
     }
 
     return (
