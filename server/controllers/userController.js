@@ -11,19 +11,22 @@ export const getUserBookings = async (req, res)=>{
         const now = new Date();
         const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
 
-        // Get all bookings
+        // Get all bookings sorted by newest first (createdAt: -1 means descending order)
+        // Paid bookings are kept FOREVER, only unpaid expired bookings are removed
         let bookings = await Booking.find({user}).populate({
             path: "show",
             populate: {path: "movie"}
-        }).sort({createdAt: -1 });
+        }).sort({createdAt: -1 }); // Newest bookings appear first
 
         // Filter out expired unpaid bookings (older than 10 minutes and not paid)
+        // IMPORTANT: Paid bookings are NEVER removed, they stay forever
         bookings = bookings.filter(booking => {
             const bookingCreatedAt = new Date(booking.createdAt);
             const isExpired = bookingCreatedAt < tenMinutesAgo;
             const isUnpaid = !booking.isPaid;
             
-            // If booking is expired and unpaid, clean it up
+            // Only remove bookings that are BOTH expired AND unpaid
+            // Paid bookings are kept forever regardless of age
             if (isExpired && isUnpaid) {
                 // Release seats asynchronously (don't wait)
                 Show.findById(booking.show).then(show => {
@@ -44,9 +47,11 @@ export const getUserBookings = async (req, res)=>{
                 return false; // Exclude from results
             }
             
-            return true; // Include in results
+            // Include all paid bookings (kept forever) and unpaid bookings that are not expired yet
+            return true;
         });
 
+        // Return bookings sorted by newest first (already sorted by MongoDB query above)
         res.json({success: true, bookings})
     } catch (error) {
         console.error(error.message);

@@ -385,6 +385,7 @@ const sendNewShowNotifications = inngest.createFunction(
 
 
 // Periodic cleanup function to remove expired unpaid bookings (runs every 5 minutes)
+// IMPORTANT: Only UNPAID bookings are removed. Paid bookings are kept FOREVER.
 const cleanupExpiredBookings = inngest.createFunction(
     {id: "cleanup-expired-bookings"},
     { cron: "*/5 * * * *" }, // Every 5 minutes
@@ -393,9 +394,10 @@ const cleanupExpiredBookings = inngest.createFunction(
         const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
 
         const result = await step.run('cleanup-expired-unpaid-bookings', async ()=>{
-            // Find all unpaid bookings older than 10 minutes
+            // Find all UNPAID bookings older than 10 minutes
+            // Paid bookings are NEVER deleted, they stay in the database forever
             const expiredBookings = await Booking.find({
-                isPaid: false,
+                isPaid: false, // Only unpaid bookings
                 createdAt: { $lt: tenMinutesAgo }
             }).populate('show');
 
