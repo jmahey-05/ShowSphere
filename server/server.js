@@ -34,5 +34,5 @@ app.use('/api/admin', adminRouter)
 app.use('/api/user', userRouter)
 
 
-app.listen(port, ()=> console.log(`Server listening at http://localhost:${port}`));
+app.listen(port, ()=> console.log(`Server listening at http://localhost:${port} `));
 

@@ -1,5 +1,6 @@
 import { clerkClient } from "@clerk/express";
 import Booking from "../models/Booking.js";
+import Show from "../models/Show.js";
 import Movie from "../models/Movie.js";
 
 
@@ -7,11 +8,45 @@ import Movie from "../models/Movie.js";
 export const getUserBookings = async (req, res)=>{
     try {
         const user = req.auth().userId;
+        const now = new Date();
+        const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
 
-        const bookings = await Booking.find({user}).populate({
+        // Get all bookings
+        let bookings = await Booking.find({user}).populate({
             path: "show",
             populate: {path: "movie"}
-        }).sort({createdAt: -1 })
+        }).sort({createdAt: -1 });
+
+        // Filter out expired unpaid bookings (older than 10 minutes and not paid)
+        bookings = bookings.filter(booking => {
+            const bookingCreatedAt = new Date(booking.createdAt);
+            const isExpired = bookingCreatedAt < tenMinutesAgo;
+            const isUnpaid = !booking.isPaid;
+            
+            // If booking is expired and unpaid, clean it up
+            if (isExpired && isUnpaid) {
+                // Release seats asynchronously (don't wait)
+                Show.findById(booking.show).then(show => {
+                    if (show) {
+                        booking.bookedSeats.forEach((seat) => {
+                            delete show.occupiedSeats[seat];
+                        });
+                        show.markModified('occupiedSeats');
+                        show.save();
+                    }
+                }).catch(err => console.error('Error releasing seats:', err));
+                
+                // Delete the booking asynchronously
+                Booking.findByIdAndDelete(booking._id).catch(err => 
+                    console.error('Error deleting booking:', err)
+                );
+                
+                return false; // Exclude from results
+            }
+            
+            return true; // Include in results
+        });
+
         res.json({success: true, bookings})
     } catch (error) {
         console.error(error.message);

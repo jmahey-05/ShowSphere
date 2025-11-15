@@ -56,22 +56,46 @@ const releaseSeatsAndDeleteBooking = inngest.createFunction(
     {id: 'release-seats-delete-booking'},
     {event: "app/checkpayment"},
     async ({ event, step })=>{
-        const tenMinutesLater = new Date(Date.now() + 10 * 60 * 1000);
-        await step.sleepUntil('wait-for-10-minutes', tenMinutesLater);
+        const bookingId = event.data.bookingId;
+        
+        // Get the booking to check its creation time
+        const booking = await step.run('get-booking', async ()=>{
+            return await Booking.findById(bookingId);
+        });
 
-        await step.run('check-payment-status', async ()=>{
-            const bookingId = event.data.bookingId;
-            const booking = await Booking.findById(bookingId)
+        if (!booking) {
+            return { message: "Booking not found" };
+        }
 
-            // If payment is not made, release seats and delete booking
-            if(!booking.isPaid){
-                const show = await Show.findById(booking.show);
-                booking.bookedSeats.forEach((seat)=>{
-                    delete show.occupiedSeats[seat]
-                });
-                show.markModified('occupiedSeats')
-                await show.save()
-                await Booking.findByIdAndDelete(booking._id)
+        // Calculate when 10 minutes will have passed since booking creation
+        const bookingCreatedAt = new Date(booking.createdAt);
+        const tenMinutesAfterBooking = new Date(bookingCreatedAt.getTime() + 10 * 60 * 1000);
+        
+        // Wait until 10 minutes have passed since booking creation
+        await step.sleepUntil('wait-for-10-minutes', tenMinutesAfterBooking);
+
+        await step.run('check-payment-status-and-cleanup', async ()=>{
+            // Re-fetch booking to check current payment status
+            const currentBooking = await Booking.findById(bookingId);
+            
+            if (!currentBooking) {
+                return { message: "Booking already deleted" };
+            }
+
+            // If payment is still not made after 10 minutes, release seats and delete booking
+            if(!currentBooking.isPaid){
+                const show = await Show.findById(currentBooking.show);
+                if (show) {
+                    currentBooking.bookedSeats.forEach((seat)=>{
+                        delete show.occupiedSeats[seat]
+                    });
+                    show.markModified('occupiedSeats')
+                    await show.save()
+                }
+                await Booking.findByIdAndDelete(currentBooking._id)
+                return { message: "Booking cancelled and seats released" };
+            } else {
+                return { message: "Payment completed, booking kept" };
             }
         })
     }
@@ -84,25 +108,168 @@ const sendBookingConfirmationEmail = inngest.createFunction(
     async ({ event, step })=>{
         const { bookingId } = event.data;
 
-        const booking = await Booking.findById(bookingId).populate({
-            path: 'show',
-            populate: {path: "movie", model: "Movie"}
-        }).populate('user');
+        const booking = await step.run('fetch-booking', async () => {
+            return await Booking.findById(bookingId).populate({
+                path: 'show',
+                populate: {path: "movie", model: "Movie"}
+            }).populate('user');
+        });
 
-        await sendEmail({
-            to: booking.user.email,
-            subject: `Payment Confirmation: "${booking.show.movie.title}" booked!`,
-            body: ` <div style="font-family: Arial, sans-serif; line-height: 1.5;">
-                        <h2>Hi ${booking.user.name},</h2>
-                        <p>Your booking for <strong style="color: #F84565;">"${booking.show.movie.title}"</strong> is confirmed.</p>
-                        <p>
-                            <strong>Date:</strong> ${new Date(booking.show.showDateTime).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })}<br/>
-                            <strong>Time:</strong> ${new Date(booking.show.showDateTime).toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata' })}
-                        </p>
-                        <p>Enjoy the show! 🍿</p>
-                        <p>Thanks for booking with us!<br/>— QuickShow Team</p>
-                    </div>`
-        })
+        if (!booking || !booking.user || !booking.show || !booking.show.movie) {
+            console.error('Booking data incomplete:', { booking: !!booking, user: !!booking?.user, show: !!booking?.show, movie: !!booking?.show?.movie });
+            return { success: false, message: "Booking data incomplete" };
+        }
+
+        // Format date and time
+        const showDate = new Date(booking.show.showDateTime);
+        const formattedDate = showDate.toLocaleDateString('en-US', { 
+            weekday: 'long',
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            timeZone: 'Asia/Kolkata' 
+        });
+        const formattedTime = showDate.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            timeZone: 'Asia/Kolkata' 
+        });
+
+        // Format seats
+        const seatsList = booking.bookedSeats.sort().join(', ');
+        const currency = process.env.VITE_CURRENCY || process.env.CURRENCY || '₹';
+
+        // Create professional email template
+        const emailBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f4f4f4;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation" style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #F84565 0%, #d63656 100%); padding: 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">🎬 Booking Confirmed!</h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="margin: 0 0 20px 0; font-size: 16px; color: #333333; line-height: 1.6;">
+                                Hi <strong>${booking.user.name}</strong>,
+                            </p>
+                            
+                            <p style="margin: 0 0 30px 0; font-size: 16px; color: #333333; line-height: 1.6;">
+                                Your booking for <strong style="color: #F84565;">"${booking.show.movie.title}"</strong> has been confirmed! 
+                                Please keep this email as your booking confirmation.
+                            </p>
+
+                            <!-- Booking Details Card -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f9f9f9; border-radius: 8px; margin-bottom: 30px; border: 1px solid #e0e0e0;">
+                                <tr>
+                                    <td style="padding: 25px;">
+                                        <h2 style="margin: 0 0 20px 0; font-size: 20px; color: #333333; border-bottom: 2px solid #F84565; padding-bottom: 10px;">
+                                            Booking Details
+                                        </h2>
+                                        
+                                        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #666666; font-size: 14px; width: 40%;"><strong>Movie:</strong></td>
+                                                <td style="padding: 8px 0; color: #333333; font-size: 14px; font-weight: 600;">${booking.show.movie.title}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #666666; font-size: 14px;"><strong>Date:</strong></td>
+                                                <td style="padding: 8px 0; color: #333333; font-size: 14px;">${formattedDate}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #666666; font-size: 14px;"><strong>Time:</strong></td>
+                                                <td style="padding: 8px 0; color: #333333; font-size: 14px;">${formattedTime}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #666666; font-size: 14px;"><strong>Seats:</strong></td>
+                                                <td style="padding: 8px 0; color: #333333; font-size: 14px; font-weight: 600;">${seatsList}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #666666; font-size: 14px;"><strong>Number of Tickets:</strong></td>
+                                                <td style="padding: 8px 0; color: #333333; font-size: 14px;">${booking.bookedSeats.length}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #666666; font-size: 14px;"><strong>Total Amount:</strong></td>
+                                                <td style="padding: 8px 0; color: #F84565; font-size: 18px; font-weight: 700;">${currency}${booking.amount.toFixed(2)}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Confirmation Token Card -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #F84565 0%, #d63656 100%); border-radius: 8px; margin-bottom: 30px;">
+                                <tr>
+                                    <td style="padding: 25px; text-align: center;">
+                                        <p style="margin: 0 0 10px 0; color: #ffffff; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+                                            Booking Confirmation Number
+                                        </p>
+                                        <p style="margin: 0; color: #ffffff; font-size: 32px; font-weight: 700; letter-spacing: 2px; font-family: 'Courier New', monospace;">
+                                            ${booking.bookingToken || 'N/A'}
+                                        </p>
+                                        <p style="margin: 15px 0 0 0; color: #ffffff; font-size: 12px; opacity: 0.9;">
+                                            Please save this number as proof of your booking
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Important Notice -->
+                            <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin-bottom: 30px; border-radius: 4px;">
+                                <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.6;">
+                                    <strong>📋 Important:</strong> Please arrive at least 15 minutes before the show time. 
+                                    Present this confirmation number at the theater for entry.
+                                </p>
+                            </div>
+
+                            <p style="margin: 30px 0 0 0; font-size: 16px; color: #333333; line-height: 1.6; text-align: center;">
+                                Enjoy your show! 🍿🎬
+                            </p>
+                            
+                            <p style="margin: 20px 0 0 0; font-size: 14px; color: #666666; line-height: 1.6; text-align: center;">
+                                Thanks for booking with us!<br/>
+                                <strong style="color: #F84565;">— QuickShow Team</strong>
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f9f9f9; padding: 20px 30px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e0e0e0;">
+                            <p style="margin: 0; font-size: 12px; color: #999999;">
+                                This is an automated confirmation email. Please do not reply to this email.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+        `;
+
+        await step.run('send-email', async () => {
+            return await sendEmail({
+                to: booking.user.email,
+                subject: `🎬 Booking Confirmed: "${booking.show.movie.title}" - ${booking.bookingToken || 'Confirmation'}`,
+                body: emailBody
+            });
+        });
+
+        return { success: true, message: "Confirmation email sent" };
     }
 )
 
@@ -217,6 +384,55 @@ const sendNewShowNotifications = inngest.createFunction(
 )
 
 
+// Periodic cleanup function to remove expired unpaid bookings (runs every 5 minutes)
+const cleanupExpiredBookings = inngest.createFunction(
+    {id: "cleanup-expired-bookings"},
+    { cron: "*/5 * * * *" }, // Every 5 minutes
+    async ({ step })=>{
+        const now = new Date();
+        const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
+
+        const result = await step.run('cleanup-expired-unpaid-bookings', async ()=>{
+            // Find all unpaid bookings older than 10 minutes
+            const expiredBookings = await Booking.find({
+                isPaid: false,
+                createdAt: { $lt: tenMinutesAgo }
+            }).populate('show');
+
+            let cleaned = 0;
+            let errors = 0;
+
+            for (const booking of expiredBookings) {
+                try {
+                    // Release seats
+                    if (booking.show) {
+                        booking.bookedSeats.forEach((seat) => {
+                            delete booking.show.occupiedSeats[seat];
+                        });
+                        booking.show.markModified('occupiedSeats');
+                        await booking.show.save();
+                    }
+                    
+                    // Delete booking
+                    await Booking.findByIdAndDelete(booking._id);
+                    cleaned++;
+                } catch (error) {
+                    console.error(`Error cleaning up booking ${booking._id}:`, error);
+                    errors++;
+                }
+            }
+
+            return {
+                cleaned,
+                errors,
+                message: `Cleaned up ${cleaned} expired booking(s), ${errors} error(s)`
+            };
+        });
+
+        return result;
+    }
+)
+
 export const functions = [
     syncUserCreation,
     syncUserDeletion,
@@ -224,5 +440,6 @@ export const functions = [
     releaseSeatsAndDeleteBooking,
     sendBookingConfirmationEmail,
     sendShowReminders,
-    sendNewShowNotifications
+    sendNewShowNotifications,
+    cleanupExpiredBookings
 ];

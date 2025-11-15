@@ -139,6 +139,7 @@ export const getShow = async (req, res) =>{
         }
 
         const dateTime = {};
+        const showPrices = {};
 
         shows.forEach((show) => {
             const date = show.showDateTime.toISOString().split("T")[0];
@@ -146,9 +147,11 @@ export const getShow = async (req, res) =>{
                 dateTime[date] = []
             }
             dateTime[date].push({ time: show.showDateTime, showId: show._id })
+            // Store price for each show
+            showPrices[show._id] = show.showPrice || 0;
         })
 
-        res.json({success: true, movie, dateTime})
+        res.json({success: true, movie, dateTime, showPrices})
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, message: error.message });
