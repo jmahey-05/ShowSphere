@@ -43,16 +43,27 @@ export const stripeWebhooks = async (request, response)=>{
 
                 console.log(`Payment successful for booking: ${bookingId}`);
 
-                // Send Confirmation Email
+                // Send Confirmation Email - ensure bookingId is a string
                 try {
-                    await inngest.send({
+                    const bookingIdString = String(bookingId);
+                    const eventId = `booking-email-${bookingIdString}-${Date.now()}`;
+                    console.log(`Triggering email event for booking: ${bookingIdString} with event ID: ${eventId}`);
+                    
+                    const eventResult = await inngest.send({
+                        id: eventId, // Unique event ID to prevent deduplication
                         name: "app/show.booked",
-                        data: {bookingId}
+                        data: {bookingId: bookingIdString}
                     });
-                    console.log(`Email event triggered for booking: ${bookingId}`);
+                    
+                    console.log(`Email event triggered successfully for booking: ${bookingIdString}`, eventResult);
                 } catch (emailError) {
                     // Log error but don't fail the webhook - payment is already processed
-                    console.error(`Failed to trigger email for booking ${bookingId}:`, emailError.message);
+                    console.error(`Failed to trigger email for booking ${bookingId}:`, emailError);
+                    console.error('Email error details:', {
+                        message: emailError.message,
+                        stack: emailError.stack,
+                        name: emailError.name
+                    });
                 }
                 
                 break;

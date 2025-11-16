@@ -140,12 +140,24 @@ export const createBooking = async (req, res)=>{
             
             // Send confirmation email when booking is marked as paid (without Stripe)
             try {
-                await inngest.send({
+                const bookingIdString = booking._id.toString();
+                const eventId = `booking-email-${bookingIdString}-${Date.now()}`;
+                console.log(`Triggering email event for booking (no Stripe): ${bookingIdString} with event ID: ${eventId}`);
+                
+                const eventResult = await inngest.send({
+                    id: eventId, // Unique event ID to prevent deduplication
                     name: "app/show.booked",
-                    data: {bookingId: booking._id.toString()}
+                    data: {bookingId: bookingIdString}
                 });
+                
+                console.log(`Email event triggered successfully (no Stripe) for booking: ${bookingIdString}`, eventResult);
             } catch (inngestError) {
-                console.error('Inngest error (non-critical):', inngestError.message);
+                console.error('Inngest error (non-critical):', inngestError);
+                console.error('Inngest error details:', {
+                    message: inngestError.message,
+                    stack: inngestError.stack,
+                    name: inngestError.name
+                });
             }
             
             return res.status(201).json({

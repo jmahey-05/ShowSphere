@@ -46,14 +46,26 @@ export const getAllShows = async (req, res) =>{
 // API to get all bookings
 export const getAllBookings = async (req, res) =>{
     try {
-        const bookings = await Booking.find({}).populate('user').populate({
-            path: "show",
-            populate: {path: "movie"}
-        }).sort({ createdAt: -1 })
-        res.json({success: true, bookings })
+        const bookings = await Booking.find({})
+            .populate('user')
+            .populate({
+                path: "show",
+                populate: {path: "movie", model: "Movie"}
+            })
+            .sort({ createdAt: -1 })
+            .lean(); // Use lean() for better performance
+        
+        // Filter out bookings with missing required data
+        const validBookings = bookings.filter(booking => 
+            booking.user && 
+            booking.show && 
+            booking.show.movie
+        );
+        
+        res.json({success: true, bookings: validBookings })
     } catch (error) {
-        console.error(error);
-        res.json({success: false, message: error.message})
+        console.error("Error fetching bookings:", error);
+        res.status(500).json({success: false, message: error.message})
     }
 }
 

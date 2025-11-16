@@ -31,6 +31,14 @@ const SeatLayout = () => {
 
   const currency = import.meta.env.VITE_CURRENCY || "₹";
 
+  // Redirect to home if user is not logged in
+  useEffect(() => {
+    if (!user) {
+      toast.error("Please login to book tickets");
+      navigate('/');
+    }
+  }, [user, navigate]);
+
   // Fetch show data
   const getShow = useCallback(async () => {
     try {
@@ -49,6 +57,12 @@ const SeatLayout = () => {
 
   // Handle seat click
   const handleSeatClick = (seatId) => {
+    if (!user) {
+      toast.error("Please login to select seats");
+      navigate('/');
+      return;
+    }
+
     if (!selectedTime) return toast.error("Please select time first");
 
     if (!selectedSeats.includes(seatId) && selectedSeats.length >= 10) {
@@ -188,6 +202,11 @@ const SeatLayout = () => {
   useEffect(() => {
     getOccupiedSeats();
   }, [getOccupiedSeats]);
+
+  // Don't render if user is not logged in
+  if (!user) {
+    return <Loading />;
+  }
 
   if (loading) {
     return <Loading />;

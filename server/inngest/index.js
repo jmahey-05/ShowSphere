@@ -107,23 +107,70 @@ const sendBookingConfirmationEmail = inngest.createFunction(
     {event: "app/show.booked"},
     async ({ event, step })=>{
         const { bookingId } = event.data;
+        
+        console.log(`[Email Function] Processing email for booking: ${bookingId}`);
+        console.log(`[Email Function] Event data:`, event.data);
 
         const booking = await step.run('fetch-booking', async () => {
-            return await Booking.findById(bookingId).populate({
-                path: 'show',
-                populate: {path: "movie", model: "Movie"}
-            }).populate('user');
+            try {
+                // Ensure bookingId is properly formatted
+                const bookingIdStr = String(bookingId);
+                console.log(`[Email Function] Fetching booking with ID: ${bookingIdStr}`);
+                
+                const bookingDoc = await Booking.findById(bookingIdStr).populate({
+                    path: 'show',
+                    populate: {path: "movie", model: "Movie"}
+                }).populate('user');
+                
+                console.log(`[Email Function] Booking found: ${!!bookingDoc}`);
+                if (bookingDoc) {
+                    console.log(`[Email Function] Booking details:`, {
+                        id: bookingDoc._id,
+                        isPaid: bookingDoc.isPaid,
+                        hasUser: !!bookingDoc.user,
+                        hasShow: !!bookingDoc.show,
+                        hasMovie: !!bookingDoc.show?.movie
+                    });
+                }
+                
+                return bookingDoc;
+            } catch (fetchError) {
+                console.error(`[Email Function] Error fetching booking:`, fetchError);
+                throw fetchError;
+            }
         });
 
-        if (!booking || !booking.user || !booking.show || !booking.show.movie) {
-            console.error('Booking data incomplete:', { booking: !!booking, user: !!booking?.user, show: !!booking?.show, movie: !!booking?.show?.movie });
+        if (!booking) {
+            console.error(`[Email Function] Booking not found for ID: ${bookingId}`);
+            return { success: false, message: `Booking not found: ${bookingId}` };
+        }
+
+        if (!booking.user || !booking.show || !booking.show.movie) {
+            console.error('[Email Function] Booking data incomplete:', { 
+                booking: !!booking, 
+                user: !!booking?.user, 
+                show: !!booking?.show, 
+                movie: !!booking?.show?.movie 
+            });
             return { success: false, message: "Booking data incomplete" };
         }
 
         // Ensure booking is paid before sending confirmation email
         if (!booking.isPaid) {
-            console.error(`Booking ${bookingId} is not paid. Email not sent.`);
-            return { success: false, message: "Booking is not paid yet" };
+            console.error(`[Email Function] Booking ${bookingId} is not paid. Email not sent. Current status: isPaid=${booking.isPaid}`);
+            // Wait a bit and retry - sometimes the payment status update hasn't propagated
+            await step.sleep('wait-for-payment-status', '2s');
+            
+            // Re-fetch booking to check payment status again
+            const recheckBooking = await step.run('recheck-booking-payment', async () => {
+                return await Booking.findById(bookingId).select('isPaid');
+            });
+            
+            if (!recheckBooking || !recheckBooking.isPaid) {
+                console.error(`[Email Function] Booking ${bookingId} still not paid after retry. Email not sent.`);
+                return { success: false, message: "Booking is not paid yet" };
+            }
+            console.log(`[Email Function] Booking ${bookingId} is now paid after retry. Proceeding with email.`);
         }
 
         // Format date and time
@@ -269,20 +316,37 @@ const sendBookingConfirmationEmail = inngest.createFunction(
 
         await step.run('send-email', async () => {
             try {
-                console.log(`Sending confirmation email to ${booking.user.email} for booking ${bookingId}`);
+                const recipientEmail = booking.user.email;
+                console.log(`[Email Function] Sending confirmation email to ${recipientEmail} for booking ${bookingId}`);
+                
                 const emailResult = await sendEmail({
-                    to: booking.user.email,
+                    to: recipientEmail,
                     subject: `🎬 Booking Confirmed: "${booking.show.movie.title}" - ${booking.bookingToken || 'Confirmation'}`,
                     body: emailBody
                 });
-                console.log(`Email sent successfully for booking ${bookingId}. Message ID: ${emailResult.messageId}`);
+                
+                console.log(`[Email Function] Email sent successfully for booking ${bookingId}`);
+                console.log(`[Email Function] Email result:`, {
+                    messageId: emailResult.messageId,
+                    accepted: emailResult.accepted,
+                    rejected: emailResult.rejected,
+                    response: emailResult.response
+                });
+                
                 return emailResult;
             } catch (emailError) {
-                console.error(`Failed to send email for booking ${bookingId}:`, emailError.message);
+                console.error(`[Email Function] Failed to send email for booking ${bookingId}:`, emailError);
+                console.error(`[Email Function] Email error details:`, {
+                    message: emailError.message,
+                    stack: emailError.stack,
+                    code: emailError.code,
+                    command: emailError.command
+                });
                 throw emailError;
             }
         });
 
+        console.log(`[Email Function] Successfully completed email sending for booking ${bookingId}`);
         return { success: true, message: `Confirmation email sent to ${booking.user.email}` };
     }
 )
