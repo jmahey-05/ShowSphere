@@ -2,6 +2,7 @@ import { inngest } from "../inngest/index.js";
 import Booking from "../models/Booking.js";
 import Show from "../models/Show.js"
 import stripe from 'stripe'
+import { sendBookingEmailDirectly } from "../utils/sendBookingEmail.js";
 
 
 // Function to check availability of selected seats for a movie
@@ -139,25 +140,49 @@ export const createBooking = async (req, res)=>{
             await booking.save();
             
             // Send confirmation email when booking is marked as paid (without Stripe)
+            const bookingIdString = booking._id.toString();
+            let emailSent = false;
+
+            // Try Inngest first
             try {
-                const bookingIdString = booking._id.toString();
                 const eventId = `booking-email-${bookingIdString}-${Date.now()}`;
-                console.log(`Triggering email event for booking (no Stripe): ${bookingIdString} with event ID: ${eventId}`);
+                console.log(`[Booking] Attempting to trigger email via Inngest for booking (no Stripe): ${bookingIdString} with event ID: ${eventId}`);
                 
                 const eventResult = await inngest.send({
-                    id: eventId, // Unique event ID to prevent deduplication
+                    id: eventId,
                     name: "app/show.booked",
                     data: {bookingId: bookingIdString}
                 });
                 
-                console.log(`Email event triggered successfully (no Stripe) for booking: ${bookingIdString}`, eventResult);
+                console.log(`[Booking] Inngest event triggered successfully (no Stripe) for booking: ${bookingIdString}`, eventResult);
+                emailSent = true;
             } catch (inngestError) {
-                console.error('Inngest error (non-critical):', inngestError);
-                console.error('Inngest error details:', {
+                console.error('[Booking] Inngest failed (no Stripe):', inngestError.message);
+                console.error('[Booking] Inngest error details:', {
                     message: inngestError.message,
                     stack: inngestError.stack,
                     name: inngestError.name
                 });
+            }
+
+            // Fallback to direct email if Inngest failed
+            if (!emailSent) {
+                console.log(`[Booking] Falling back to direct email send for booking (no Stripe): ${bookingIdString}`);
+                try {
+                    const directEmailResult = await sendBookingEmailDirectly(bookingIdString);
+                    if (directEmailResult.success) {
+                        console.log(`[Booking] Direct email sent successfully (no Stripe) for booking: ${bookingIdString}`);
+                        emailSent = true;
+                    } else {
+                        console.error(`[Booking] Direct email also failed (no Stripe) for booking ${bookingIdString}:`, directEmailResult.message);
+                    }
+                } catch (directEmailError) {
+                    console.error(`[Booking] Direct email error (no Stripe) for booking ${bookingIdString}:`, directEmailError);
+                }
+            }
+
+            if (!emailSent) {
+                console.error(`[Booking] WARNING: Email could not be sent for booking ${bookingIdString} (no Stripe) via any method`);
             }
             
             return res.status(201).json({

@@ -1,6 +1,7 @@
 import stripe from "stripe";
 import Booking from '../models/Booking.js'
 import { inngest } from "../inngest/index.js";
+import { sendBookingEmailDirectly } from "../utils/sendBookingEmail.js";
 
 export const stripeWebhooks = async (request, response)=>{
     const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY);
@@ -16,7 +17,7 @@ export const stripeWebhooks = async (request, response)=>{
 
     try {
         switch (event.type) {
-            case "payment_intent.succeeded": {
+            case "checkout.session.completed": {
                 const paymentIntent = event.data.object;
                 const sessionList = await stripeInstance.checkout.sessions.list({
                     payment_intent: paymentIntent.id
@@ -43,27 +44,50 @@ export const stripeWebhooks = async (request, response)=>{
 
                 console.log(`Payment successful for booking: ${bookingId}`);
 
-                // Send Confirmation Email - ensure bookingId is a string
+                // Send Confirmation Email - try Inngest first, fallback to direct send
+                const bookingIdString = String(bookingId);
+                let emailSent = false;
+
+                // Try Inngest first
                 try {
-                    const bookingIdString = String(bookingId);
                     const eventId = `booking-email-${bookingIdString}-${Date.now()}`;
-                    console.log(`Triggering email event for booking: ${bookingIdString} with event ID: ${eventId}`);
+                    console.log(`[Webhook] Attempting to trigger email via Inngest for booking: ${bookingIdString} with event ID: ${eventId}`);
                     
                     const eventResult = await inngest.send({
-                        id: eventId, // Unique event ID to prevent deduplication
+                        id: eventId,
                         name: "app/show.booked",
                         data: {bookingId: bookingIdString}
                     });
                     
-                    console.log(`Email event triggered successfully for booking: ${bookingIdString}`, eventResult);
-                } catch (emailError) {
-                    // Log error but don't fail the webhook - payment is already processed
-                    console.error(`Failed to trigger email for booking ${bookingId}:`, emailError);
-                    console.error('Email error details:', {
-                        message: emailError.message,
-                        stack: emailError.stack,
-                        name: emailError.name
+                    console.log(`[Webhook] Inngest event triggered successfully for booking: ${bookingIdString}`, eventResult);
+                    emailSent = true;
+                } catch (inngestError) {
+                    console.error(`[Webhook] Inngest failed for booking ${bookingIdString}:`, inngestError.message);
+                    console.error('[Webhook] Inngest error details:', {
+                        message: inngestError.message,
+                        stack: inngestError.stack,
+                        name: inngestError.name
                     });
+                }
+
+                // Fallback to direct email if Inngest failed
+                if (!emailSent) {
+                    console.log(`[Webhook] Falling back to direct email send for booking: ${bookingIdString}`);
+                    try {
+                        const directEmailResult = await sendBookingEmailDirectly(bookingIdString);
+                        if (directEmailResult.success) {
+                            console.log(`[Webhook] Direct email sent successfully for booking: ${bookingIdString}`);
+                            emailSent = true;
+                        } else {
+                            console.error(`[Webhook] Direct email also failed for booking ${bookingIdString}:`, directEmailResult.message);
+                        }
+                    } catch (directEmailError) {
+                        console.error(`[Webhook] Direct email error for booking ${bookingIdString}:`, directEmailError);
+                    }
+                }
+
+                if (!emailSent) {
+                    console.error(`[Webhook] WARNING: Email could not be sent for booking ${bookingIdString} via any method`);
                 }
                 
                 break;
