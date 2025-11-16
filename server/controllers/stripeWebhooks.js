@@ -25,16 +25,35 @@ export const stripeWebhooks = async (request, response)=>{
                 const session = sessionList.data[0];
                 const { bookingId } = session.metadata;
 
-                await Booking.findByIdAndUpdate(bookingId, {
+                if (!bookingId) {
+                    console.error("No bookingId found in session metadata");
+                    break;
+                }
+
+                // Update booking to mark as paid
+                const updatedBooking = await Booking.findByIdAndUpdate(bookingId, {
                     isPaid: true,
                     paymentLink: ""
-                })
+                }, { new: true });
 
-                 // Send Confirmation Email
-                 await inngest.send({
-                    name: "app/show.booked",
-                    data: {bookingId}
-                 })
+                if (!updatedBooking) {
+                    console.error(`Booking not found: ${bookingId}`);
+                    break;
+                }
+
+                console.log(`Payment successful for booking: ${bookingId}`);
+
+                // Send Confirmation Email
+                try {
+                    await inngest.send({
+                        name: "app/show.booked",
+                        data: {bookingId}
+                    });
+                    console.log(`Email event triggered for booking: ${bookingId}`);
+                } catch (emailError) {
+                    // Log error but don't fail the webhook - payment is already processed
+                    console.error(`Failed to trigger email for booking ${bookingId}:`, emailError.message);
+                }
                 
                 break;
             }

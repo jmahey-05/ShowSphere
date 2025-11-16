@@ -120,6 +120,12 @@ const sendBookingConfirmationEmail = inngest.createFunction(
             return { success: false, message: "Booking data incomplete" };
         }
 
+        // Ensure booking is paid before sending confirmation email
+        if (!booking.isPaid) {
+            console.error(`Booking ${bookingId} is not paid. Email not sent.`);
+            return { success: false, message: "Booking is not paid yet" };
+        }
+
         // Format date and time
         const showDate = new Date(booking.show.showDateTime);
         const formattedDate = showDate.toLocaleDateString('en-US', { 
@@ -262,14 +268,22 @@ const sendBookingConfirmationEmail = inngest.createFunction(
         `;
 
         await step.run('send-email', async () => {
-            return await sendEmail({
-                to: booking.user.email,
-                subject: `🎬 Booking Confirmed: "${booking.show.movie.title}" - ${booking.bookingToken || 'Confirmation'}`,
-                body: emailBody
-            });
+            try {
+                console.log(`Sending confirmation email to ${booking.user.email} for booking ${bookingId}`);
+                const emailResult = await sendEmail({
+                    to: booking.user.email,
+                    subject: `🎬 Booking Confirmed: "${booking.show.movie.title}" - ${booking.bookingToken || 'Confirmation'}`,
+                    body: emailBody
+                });
+                console.log(`Email sent successfully for booking ${bookingId}. Message ID: ${emailResult.messageId}`);
+                return emailResult;
+            } catch (emailError) {
+                console.error(`Failed to send email for booking ${bookingId}:`, emailError.message);
+                throw emailError;
+            }
         });
 
-        return { success: true, message: "Confirmation email sent" };
+        return { success: true, message: `Confirmation email sent to ${booking.user.email}` };
     }
 )
 
